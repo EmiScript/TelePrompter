@@ -2,12 +2,10 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <!-- Fondamentale per far riconoscere a iOS la Safe Area (la barra inferiore) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Teleprompter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Fix per l'altezza su iOS (ignora la barra di navigazione) */
         body, html {
             margin: 0;
             padding: 0;
@@ -16,49 +14,55 @@
             background-color: black;
         }
 
-        /* Gradiente per sfumare dolcemente il testo in alto e in basso */
         .mask-fade {
             mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
         }
 
-        /* Protezione automatica per i comandi sopra la barra inferiore di Safari / iPhone */
         #controls-container {
             padding-bottom: calc(1rem + env(safe-area-inset-bottom));
         }
 
-        /* Leggibilità del testo scorrevole */
         .text-outline {
             color: white;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.9), -2px -2px 4px rgba(0,0,0,0.9);
+        }
+        
+        .recording-active {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { background-color: #dc2626; }
+            50% { background-color: #991b1b; }
+            100% { background-color: #dc2626; }
         }
     </style>
 </head>
 <body class="relative w-full text-white bg-black">
 
-    <!-- Sfondo: Feed Video della Fotocamera Frontale -->
+    <!-- Sfondo: Feed Video -->
     <video id="camera-feed" class="absolute inset-0 w-full h-[100dvh] object-cover z-0" autoplay playsinline muted></video>
 
-    <!-- Overlay Prompter Scorrimento -->
+    <!-- Overlay Prompter -->
     <div id="scroll-container" class="absolute inset-0 z-10 overflow-y-auto pointer-events-auto mask-fade pb-[150px]">
         <div id="prompter-text" class="w-full max-w-2xl mx-auto px-4 font-semibold text-center text-outline text-4xl leading-relaxed break-words" style="padding-top: 60dvh; padding-bottom: 60dvh;">
-            Benvenuto nel tuo nuovo Teleprompter!<br><br>
-            Guarda direttamente nell'obiettivo del tuo iPhone mentre leggi questo testo.<br><br>
-            Tocca il pulsante "Modifica Testo" in basso per inserire il tuo copione personalizzato.<br><br>
-            Puoi regolare la velocità e la dimensione usando i cursori in basso.<br><br>
-            Sei pronto a registrare il tuo video perfetto per i social!
+            Guarda nell'obiettivo e inizia a parlare.<br><br>
+            Premi "Registra" per avviare il video, poi premi "Scorri" per far muovere il testo.<br><br>
+            Il video finale sarà pulito, senza questo testo in sovrimpressione.
         </div>
     </div>
 
-    <!-- Pannello di controllo in basso -->
+    <!-- Pannello di controllo -->
     <div id="controls-container" class="absolute bottom-0 left-0 w-full z-20 bg-black/80 backdrop-blur-md border-t border-gray-700 p-4">
         <div class="max-w-2xl mx-auto flex flex-col gap-4">
             
             <!-- Bottoni -->
             <div class="flex justify-between items-center gap-2">
-                <button id="btn-edit" class="bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg font-bold flex-1 text-sm">Modifica Testo</button>
-                <button id="btn-play" class="bg-blue-600 hover:bg-blue-500 px-4 py-3 rounded-lg font-bold flex-1 text-sm">Avvia / Pausa</button>
-                <button id="btn-reset" class="bg-red-600 hover:bg-red-500 px-4 py-3 rounded-lg font-bold flex-1 text-sm">Inizio</button>
+                <button id="btn-edit" class="bg-gray-700 hover:bg-gray-600 py-3 rounded-lg font-bold flex-1 text-xs">Modifica</button>
+                <button id="btn-play" class="bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold flex-1 text-xs">Scorri</button>
+                <button id="btn-reset" class="bg-gray-600 hover:bg-gray-500 py-3 rounded-lg font-bold flex-1 text-xs">Inizio</button>
+                <button id="btn-record" class="bg-red-600 hover:bg-red-500 py-3 rounded-lg font-bold flex-1 text-xs text-white">⏺ Registra</button>
             </div>
 
             <!-- Cursori -->
@@ -68,60 +72,105 @@
                     <input type="range" id="speed-slider" min="0.5" max="5" step="0.1" value="2" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                 </div>
                 <div class="flex-1 flex flex-col">
-                    <label class="text-xs font-bold text-gray-300 mb-2">Grandezza Testo</label>
+                    <label class="text-xs font-bold text-gray-300 mb-2">Testo</label>
                     <input type="range" id="size-slider" min="20" max="80" step="2" value="36" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Finestra modale per la modifica del testo -->
+    <!-- Modale Modifica Testo -->
     <div id="edit-modal" class="hidden absolute inset-0 z-50 bg-black p-4 flex flex-col">
         <h2 class="text-xl font-bold mb-2 pt-8">Modifica Copione</h2>
         <textarea id="text-editor" class="flex-1 bg-gray-800 text-white p-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"></textarea>
         <div class="flex justify-end gap-2 mt-4 pb-8">
-            <button id="btn-cancel" class="bg-gray-600 hover:bg-gray-500 px-6 py-3 rounded-lg font-bold">Annulla</button>
-            <button id="btn-save" class="bg-green-600 hover:bg-green-500 px-6 py-3 rounded-lg font-bold">Salva</button>
+            <button id="btn-cancel" class="bg-gray-600 px-6 py-3 rounded-lg font-bold">Annulla</button>
+            <button id="btn-save" class="bg-green-600 px-6 py-3 rounded-lg font-bold">Salva</button>
         </div>
     </div>
 
     <script>
-        // Elementi DOM
         const video = document.getElementById('camera-feed');
         const scrollContainer = document.getElementById('scroll-container');
         const prompterText = document.getElementById('prompter-text');
-        
         const btnPlay = document.getElementById('btn-play');
         const btnReset = document.getElementById('btn-reset');
         const btnEdit = document.getElementById('btn-edit');
+        const btnRecord = document.getElementById('btn-record');
         
-        const speedSlider = document.getElementById('speed-slider');
-        const speedVal = document.getElementById('speed-val');
-        const sizeSlider = document.getElementById('size-slider');
-
-        const editModal = document.getElementById('edit-modal');
-        const textEditor = document.getElementById('text-editor');
-        const btnSave = document.getElementById('btn-save');
-        const btnCancel = document.getElementById('btn-cancel');
-
-        // Stato
         let isPlaying = false;
         let scrollSpeed = 2;
         let animationId;
+        
+        // Variabili per la registrazione
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
 
-        // Inizializza Fotocamera
         async function initCamera() {
             try {
+                // Richiede sia video (frontale) che audio
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "user" } // Fotocamera frontale
+                    video: { facingMode: "user" },
+                    audio: true 
                 });
                 video.srcObject = stream;
+
+                // Configura il registratore
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/mp4' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Crea un link invisibile per scaricare il video
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `video_social_${new Date().getTime()}.mp4`;
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                    }, 100);
+                    
+                    recordedChunks = [];
+                };
+
             } catch (err) {
-                console.error("Errore fotocamera:", err);
+                alert("Errore fotocamera/microfono. Assicurati di aver dato i permessi.");
+                console.error(err);
             }
         }
 
-        // Loop di scorrimento (Fluido a 60fps)
+        // Gestione Registrazione
+        btnRecord.addEventListener('click', () => {
+            if (!mediaRecorder) return;
+            
+            if (!isRecording) {
+                // Inizia a registrare
+                mediaRecorder.start();
+                isRecording = true;
+                btnRecord.textContent = '⏹ Stoppa Video';
+                btnRecord.classList.add('recording-active');
+            } else {
+                // Ferma la registrazione
+                mediaRecorder.stop();
+                isRecording = false;
+                btnRecord.textContent = '⏺ Registra';
+                btnRecord.classList.remove('recording-active');
+            }
+        });
+
+        // Loop di scorrimento
         function scrollLoop() {
             if (isPlaying) {
                 scrollContainer.scrollTop += scrollSpeed;
@@ -129,53 +178,47 @@
             animationId = requestAnimationFrame(scrollLoop);
         }
 
-        // Gestione Play / Pausa
         btnPlay.addEventListener('click', () => {
             isPlaying = !isPlaying;
-            btnPlay.textContent = isPlaying ? "Pausa" : "Avvia / Pausa";
+            btnPlay.textContent = isPlaying ? "Pausa" : "Scorri";
             btnPlay.classList.toggle('bg-blue-600', !isPlaying);
             btnPlay.classList.toggle('bg-yellow-600', isPlaying);
         });
 
-        // Reset all'inizio
         btnReset.addEventListener('click', () => {
             isPlaying = false;
-            btnPlay.textContent = "Avvia / Pausa";
-            btnPlay.classList.add('bg-blue-600');
-            btnPlay.classList.remove('bg-yellow-600');
+            btnPlay.textContent = "Scorri";
+            btnPlay.className = "bg-blue-600 py-3 rounded-lg font-bold flex-1 text-xs";
             scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
         });
 
-        // Controlli Velocità e Testo
-        speedSlider.addEventListener('input', (e) => {
+        document.getElementById('speed-slider').addEventListener('input', (e) => {
             scrollSpeed = parseFloat(e.target.value);
-            speedVal.textContent = scrollSpeed;
+            document.getElementById('speed-val').textContent = scrollSpeed;
         });
 
-        sizeSlider.addEventListener('input', (e) => {
+        document.getElementById('size-slider').addEventListener('input', (e) => {
             prompterText.style.fontSize = e.target.value + 'px';
         });
 
-        // Gestione Editor Testo
         btnEdit.addEventListener('click', () => {
             isPlaying = false; 
-            btnPlay.textContent = "Avvia / Pausa";
-            btnPlay.className = "bg-blue-600 hover:bg-blue-500 px-4 py-3 rounded-lg font-bold flex-1 text-sm";
-            textEditor.value = prompterText.innerHTML.replace(/<br\s*[\/]?>/gi, '\n').trim();
-            editModal.classList.remove('hidden');
+            btnPlay.textContent = "Scorri";
+            btnPlay.className = "bg-blue-600 py-3 rounded-lg font-bold flex-1 text-xs";
+            document.getElementById('text-editor').value = prompterText.innerHTML.replace(/<br\s*[\/]?>/gi, '\n').trim();
+            document.getElementById('edit-modal').classList.remove('hidden');
         });
 
-        btnSave.addEventListener('click', () => {
-            prompterText.innerHTML = textEditor.value.replace(/\n/g, '<br>');
-            editModal.classList.add('hidden');
+        document.getElementById('btn-save').addEventListener('click', () => {
+            prompterText.innerHTML = document.getElementById('text-editor').value.replace(/\n/g, '<br>');
+            document.getElementById('edit-modal').classList.add('hidden');
             scrollContainer.scrollTop = 0; 
         });
 
-        btnCancel.addEventListener('click', () => {
-            editModal.classList.add('hidden');
+        document.getElementById('btn-cancel').addEventListener('click', () => {
+            document.getElementById('edit-modal').classList.add('hidden');
         });
 
-        // Avvio script
         initCamera();
         animationId = requestAnimationFrame(scrollLoop);
     </script>
